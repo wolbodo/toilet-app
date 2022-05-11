@@ -1,3 +1,6 @@
+// STOP MODEM MANAGER!: sudo systemctl stop ModemManager.service
+// STOP 4G TTY: $ echo '1-4'|sudo tee /sys/bus/usb/drivers/usb/unbind
+
 #define ON LOW
 #define OPEN LOW
 #define OFF HIGH
@@ -18,21 +21,21 @@
 //settings: (time is in tenth of seconds, so 1200 = 120s = 2min)
 #define TOILET_LIGHT_TIMEOUT 2400
 #define ENTRANCE_LIGHT_TIMEOUT 1200
+#define WATER_VALVE_CYCLE_TIMEOUT 900
 #define WATER_VALVE_OPEN_PERIOD 50
 #define WATER_VALVE_CLOSED_PERIOD 100
-#define WATER_VALVE_CYCLES_TIMEOUT 3
+#define WATER_VALVE_CYCLE_COUNT 2
 
 //do not modify this logic:
 #define WATER_VALVE_OPEN_CLOSED_PERIOD (WATER_VALVE_OPEN_PERIOD + WATER_VALVE_CLOSED_PERIOD)
-#define WATER_VALVE_TIMEOUT (WATER_VALVE_OPEN_CLOSED_PERIOD * WATER_VALVE_CYCLES_TIMEOUT)
+#define WATER_VALVE_TIMEOUT (WATER_VALVE_OPEN_CLOSED_PERIOD * WATER_VALVE_CYCLE_COUNT)
+#define WATER_VALVE_CYCLE_DELAY (WATER_VALVE_CYCLE_TIMEOUT - WATER_VALVE_TIMEOUT - WATER_VALVE_CLOSED_PERIOD)
 
 int toiletLightTimer = 0, entranceLightTimer = 0, waterValveTimer = 0;
 boolean toiletMotion, entranceMotion;
 
 void setup()
 {
-    //Serial.begin(9600);
-
     pinMode(TOILET_LIGHT, OUTPUT);
     pinMode(ENTRANCE_LIGHT, OUTPUT);
     pinMode(WATER_VALVE, OUTPUT);
@@ -73,24 +76,23 @@ void loop()
         digitalWrite(ENTRANCE_LIGHT, OFF);
     }
   
-    if (entranceMotion && waterValveTimer < WATER_VALVE_TIMEOUT)
+    if (waterValveTimer > 0 && --waterValveTimer <= WATER_VALVE_CYCLE_DELAY)
     {
-        waterValveTimer = WATER_VALVE_TIMEOUT + (waterValveTimer % WATER_VALVE_OPEN_CLOSED_PERIOD);
-    }
-    if (waterValveTimer > 0)
-    {
-        switch(--waterValveTimer % WATER_VALVE_OPEN_CLOSED_PERIOD)
+        switch(waterValveTimer % WATER_VALVE_OPEN_CLOSED_PERIOD)
         {
-           case WATER_VALVE_OPEN_CLOSED_PERIOD-1:
+           case WATER_VALVE_OPEN_PERIOD:
                digitalWrite(WATER_VALVE, OPEN);
                break;
-           case WATER_VALVE_CLOSED_PERIOD-1:
+           case 0:
                digitalWrite(WATER_VALVE, CLOSE);
                break;
            default: //no change
                break;
         }
-        //digitalWrite(WATER_VALVE, --waterValveTimer % WATER_VALVE_OPEN_CLOSED_PERIOD >= WATER_VALVE_CLOSED_PERIOD ? OPEN : CLOSE);
+    }
+    if (entranceMotion && waterValveTimer == 0)
+    {
+        waterValveTimer = WATER_VALVE_CYCLE_TIMEOUT;
     }
   
     delay(100);
